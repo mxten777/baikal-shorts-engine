@@ -8,7 +8,10 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from app.core.config import settings
+from app.core.logging import get_logger
 
+# 로거 초기화
+logger = get_logger("youtube_oauth")
 
 # OAuth2 스코프
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
@@ -118,10 +121,13 @@ async def upload_video_to_youtube(
     while response is None:
         status, response = request.next_chunk()
         if status:
-            print(f"Upload progress: {int(status.progress() * 100)}%")
+            progress = int(status.progress() * 100)
+            logger.info(f"YouTube upload progress: {progress}%")
     
     video_id = response["id"]
-    return f"https://www.youtube.com/shorts/{video_id}"
+    video_url = f"https://www.youtube.com/shorts/{video_id}"
+    logger.info(f"YouTube upload completed: {video_url}")
+    return video_url
 
 
 def save_credentials_to_db(user_id: str, credentials: Credentials):

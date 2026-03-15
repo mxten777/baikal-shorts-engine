@@ -15,7 +15,11 @@ import httpx
 from app.core.config import settings
 from app.core.supabase import get_supabase
 from app.core.render_queue import render_queue
+from app.core.logging import get_logger
 from app.services.tts_service import generate_scene_tts
+
+# 로거 초기화
+logger = get_logger("render_service")
 
 # 바이칼 브랜드 상수
 BAIKAL_BRAND = {
@@ -204,7 +208,7 @@ async def run_render_job(job_id: str, project_id: str) -> None:
         import traceback
         err_msg = f"{type(e).__name__}: {e}\n" + traceback.format_exc()
         update_job("failed", 0, error_message=err_msg[:2000])
-        print(f"[RenderService] 렌더링 실패 job_id={job_id}: {err_msg}")
+        logger.error(f"렌더링 실패 job_id={job_id}: {err_msg}")
         raise
     finally:
         # 큐 슬롯 해제

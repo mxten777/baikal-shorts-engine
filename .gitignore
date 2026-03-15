@@ -89,3 +89,31 @@ docker-compose.override.yml
 *.bak
 backup/
 *.sql
+
+# Vercel
+.vercel/
+.vercel
+
+# Deployment
+render.yaml
+
+# OS specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Python virtual environments
+.venv/
+venv*/
+virtualenv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ruff
+.ruff_cache/

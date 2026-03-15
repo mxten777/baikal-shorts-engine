@@ -10,7 +10,11 @@ from typing import Optional
 from app.services.llm_service import extract_summary, generate_plan, generate_script
 from app.services.tts_service import generate_tts_for_project
 from app.core.supabase import get_supabase
+from app.core.logging import get_logger
 from app.schemas.pipeline import PipelineState
+
+# 로거 초기화
+logger = get_logger("pipeline_worker")
 
 PIPELINE_STEPS = ["summary", "plan", "script", "scenes", "tts", "render", "package"]
 
@@ -162,7 +166,7 @@ async def run_pipeline(
 
     except Exception as e:
         db.table("projects").update({"status": "failed"}).eq("id", project_id).execute()
-        print(f"[PipelineWorker] 파이프라인 실패 project_id={project_id}: {e}")
+        logger.error(f"파이프라인 실패 project_id={project_id}: {e}", exc_info=True)
 
 
 async def _save_script(project_id: str, script_data: dict, db) -> None:
