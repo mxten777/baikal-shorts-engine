@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: baikal-shorts-engine
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: FFMPEG_PATH
+        value: ffmpeg
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: TTS_VOICE
+        value: nova
+      - key: SUPABASE_BUCKET
+        value: shorts-engine
+      - key: CORS_ORIGINS
+        value: '["https://baikal-shorts-engine.vercel.app"]'
+      # 아래 항목들은 Render Dashboard > Environment 에서 직접 입력
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false

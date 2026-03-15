@@ -33,6 +33,14 @@ async def start_pipeline(project_id: str):
 
     project = result.data[0]
 
+    # 이중 실행 방지: 인메모리 상태에 활성 파이프라인이 있으면 409 반환
+    existing_state = _pipeline_states.get(project_id)
+    if existing_state and existing_state.current_step is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"파이프라인이 이미 실행 중입니다 (현재 단계: {existing_state.current_step}). 완료 후 다시 시도하세요."
+        )
+
     # 초기 상태 설정
     state = PipelineState(
         steps={step: "pending" for step in PIPELINE_STEPS},

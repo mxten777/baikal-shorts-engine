@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
+from app.core.supabase import get_supabase
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
@@ -51,6 +52,32 @@ async def startup_event():
     logger.info(f"Environment: {settings.APP_ENV}")
     logger.info(f"CORS Origins: {settings.get_cors_origins()}")
     logger.info("=" * 50)
+
+    # 서버 재시작 시 stale 'running' 파이프라인 단계 복구
+    try:
+        db = get_supabase()
+        stale_runs = (
+            db.table("pipeline_runs")
+            .select("id, project_id, step")
+            .eq("status", "running")
+            .execute()
+        )
+        if stale_runs.data:
+            stale_count = len(stale_runs.data)
+            logger.warning(f"서버 재시작: {stale_count}개의 중단된 파이프라인 단계를 'failed'로 복구합니다")
+            stale_ids = [r["id"] for r in stale_runs.data]
+            db.table("pipeline_runs").update({
+                "status": "failed",
+                "error_message": "서버 재시작으로 인한 강제 종료",
+                "finished_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            }).in_("id", stale_ids).execute()
+
+            # 연관 프로젝트도 processing → failed 처리
+            stale_project_ids = list({r["project_id"] for r in stale_runs.data})
+            db.table("projects").update({"status": "failed"}).in_("id", stale_project_ids).eq("status", "processing").execute()
+            logger.warning(f"복구 완료: {stale_count}개 단계, {len(stale_project_ids)}개 프로젝트")
+    except Exception as e:
+        logger.error(f"stale 파이프라인 복구 실패: {e}")
 
 
 @app.on_event("shutdown")

@@ -86,9 +86,14 @@ async def run_pipeline(
             set_step("summary", "running")
             await save_run("summary", "running")
             try:
-                summary_data = await extract_summary(source_text)
+                summary_data = await asyncio.wait_for(extract_summary(source_text), timeout=120)
                 set_step("summary", "done")
                 await save_run("summary", "done", result=summary_data)
+            except asyncio.TimeoutError:
+                set_step("summary", "failed")
+                state.error = "요약 생성 타임아웃 (120초 초과)"
+                await save_run("summary", "failed", error=state.error)
+                raise
             except Exception as e:
                 set_step("summary", "failed")
                 state.error = str(e)
@@ -100,9 +105,14 @@ async def run_pipeline(
             set_step("plan", "running")
             await save_run("plan", "running")
             try:
-                plan_data = await generate_plan(summary_data, content_type)
+                plan_data = await asyncio.wait_for(generate_plan(summary_data, content_type), timeout=120)
                 set_step("plan", "done")
                 await save_run("plan", "done", result=plan_data)
+            except asyncio.TimeoutError:
+                set_step("plan", "failed")
+                state.error = "기획 생성 타임아웃 (120초 초과)"
+                await save_run("plan", "failed", error=state.error)
+                raise
             except Exception as e:
                 set_step("plan", "failed")
                 state.error = str(e)
@@ -114,11 +124,16 @@ async def run_pipeline(
             set_step("script", "running")
             await save_run("script", "running")
             try:
-                script_data = await generate_script(plan_data, content_type)
+                script_data = await asyncio.wait_for(generate_script(plan_data, content_type), timeout=180)
                 # DB에 저장
                 await _save_script(project_id, script_data, db)
                 set_step("script", "done")
                 await save_run("script", "done", result=script_data)
+            except asyncio.TimeoutError:
+                set_step("script", "failed")
+                state.error = "대본 생성 타임아웃 (180초 초과)"
+                await save_run("script", "failed", error=state.error)
+                raise
             except Exception as e:
                 set_step("script", "failed")
                 state.error = str(e)
@@ -144,9 +159,15 @@ async def run_pipeline(
             set_step("tts", "running")
             await save_run("tts", "running")
             try:
-                await generate_tts_for_project(project_id)
+                await asyncio.wait_for(generate_tts_for_project(project_id), timeout=300)
                 set_step("tts", "done")
                 await save_run("tts", "done")
+            except asyncio.TimeoutError:
+                set_step("tts", "failed")
+                state.error = "TTS 생성 타임아웃 (300초 초과) — 직접 녹음 업로드 가능"
+                await save_run("tts", "failed", error=state.error)
+                db.table("projects").update({"status": "processing"}).eq("id", project_id).execute()
+                return
             except Exception as e:
                 # TTS 실패는 경고만 (수동 업로드 가능)
                 set_step("tts", "failed")

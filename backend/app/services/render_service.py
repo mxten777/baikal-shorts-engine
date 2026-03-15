@@ -215,11 +215,18 @@ async def run_render_job(job_id: str, project_id: str) -> None:
         await render_queue.release(job_id)
 
 
-def _create_scene_background(output_path: Path, scene: dict) -> None:
+def _create_scene_background(
+    output_path: Path,
+    scene: dict,
+    width: int,
+    height: int,
+    bg_rgb: tuple,
+    accent_rgb: tuple
+) -> None:
     """PIL로 씬 배경 이미지 생성 — 추상 그래픽 + 브랜드 디자인"""
     import math, random
-    w, h = BAIKAL_BRAND["width"], BAIKAL_BRAND["height"]
-    accent = BAIKAL_BRAND["accent_color"]          # (0, 212, 255)
+    w, h = width, height
+    accent = accent_rgb
     scene_num = scene.get("scene_order", 1)
 
     # 씬마다 다른 시드로 배치 일관성 유지
