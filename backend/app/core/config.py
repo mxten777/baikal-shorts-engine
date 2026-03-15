@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""  # Sentry DSN (프로덕션에서만 필수)
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "https://baikal-shorts-engine.vercel.app",
+    ]
 
     # FFmpeg
     FFMPEG_PATH: str = "ffmpeg"  # PATH에 있으면 그대로, 아니면 절대경로
