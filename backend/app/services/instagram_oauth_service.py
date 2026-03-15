@@ -9,7 +9,7 @@ import requests
 from typing import Optional, Dict
 from supabase import Client
 
-from app.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
+from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 
 class InstagramOAuthService:
