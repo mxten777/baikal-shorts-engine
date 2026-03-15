@@ -9,7 +9,7 @@ import requests
 from typing import Optional, Dict
 from supabase import Client
 
-from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
+from app.core.config import settings
 
 
 class InstagramOAuthService:
@@ -19,7 +19,7 @@ class InstagramOAuthService:
         self.client_id = os.getenv("INSTAGRAM_APP_ID")
         self.client_secret = os.getenv("INSTAGRAM_APP_SECRET")
         self.redirect_uri = os.getenv("INSTAGRAM_REDIRECT_URI", "http://localhost:5173/auth/instagram/callback")
-        self.supabase: Client = Client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        self.supabase: Client = Client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
     
     def get_authorization_url(self, state: str) -> str:
         """
