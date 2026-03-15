@@ -6,8 +6,5 @@
   "devCommand": "npm run dev",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "env": {
-    "VITE_API_URL": "@baikal-api-url"
-  }
+  ]
 }
