@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "https://baikal-shorts-engine.vercel.app",
+        "https://frontend-sigma-three-25.vercel.app",
     ]
 
     # FFmpeg
