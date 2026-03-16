@@ -33,14 +33,14 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS 설정 - 모든 origin에 대해 명시적으로 헤더 추가
+# CORS 설정 - 임시로 모든 origin 허용 (디버깅용)
 cors_origins = settings.get_cors_origins()
 logger.info(f"Configuring CORS with origins: {cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins if cors_origins else ["*"],
-    allow_credentials=True,
+    allow_origins=["*"],  # 임시로 모든 origin 허용
+    allow_credentials=False,  # credentials를 False로 변경 (allow_origins="*"와 호환)
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
