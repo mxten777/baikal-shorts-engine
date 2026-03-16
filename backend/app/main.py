@@ -98,4 +98,9 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "baikal-shorts-engine"}
+    return {
+        "status": "ok",
+        "service": "baikal-shorts-engine",
+        "environment": settings.APP_ENV,
+        "cors_origins": settings.get_cors_origins()
+    }

@@ -61,6 +61,7 @@ export const pipelineApi = {
 
   // SSE 스트림 구독 (EventSource)
   createStream: (projectId: string): EventSource => {
-    return new EventSource(`/api/v1/pipeline/${projectId}/stream`);
+    const base = import.meta.env.VITE_API_URL || "/api/v1";
+    return new EventSource(`${base}/pipeline/${projectId}/stream`);
   },
 };
