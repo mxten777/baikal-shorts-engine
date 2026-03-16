@@ -70,10 +70,19 @@ class Settings(BaseSettings):
     def get_cors_origins(self) -> List[str]:
         """환경별 CORS origins 반환 (보안 검증용)"""
         origins = self.CORS_ORIGINS if isinstance(self.CORS_ORIGINS, list) else []
-        if self.is_production:
-            # 프로덕션: 실제 도메인만 허용 (localhost 제거)
-            return [origin for origin in origins if "localhost" not in origin]
-        return origins
+        
+        # 개발 환경이거나 origins가 비어있으면 모든 origin 허용
+        if not self.is_production or not origins:
+            return ["*"]
+            
+        # 프로덕션: 실제 도메인만 허용 (localhost 제거)
+        allowed = [origin for origin in origins if "localhost" not in origin]
+        
+        # 프로덕션에서도 허용할 origin이 없으면 모든 origin 허용 (임시)
+        if not allowed:
+            return ["*"]
+            
+        return allowed
 
 
 settings = Settings()

@@ -33,12 +33,18 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# CORS 설정 - 모든 origin에 대해 명시적으로 헤더 추가
+cors_origins = settings.get_cors_origins()
+logger.info(f"Configuring CORS with origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),
+    allow_origins=cors_origins if cors_origins else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 app.include_router(api_router, prefix="/api/v1")
