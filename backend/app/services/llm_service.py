@@ -58,16 +58,22 @@ async def generate_plan(summary: dict, content_type: str) -> dict[str, Any]:
 요약 정보:
 {json.dumps(summary, ensure_ascii=False, indent=2)}
 
+**기획 원칙:**
+- **Hook 강화**: 첫 3초 안에 시청자의 호기심을 자극하거나 문제를 강하게 찌르는 질문/문장 사용.
+- **결과 중심**: 고객이 얻는 '결과'나 '이점'을 구체적인 숫자나 직관적인 비교로 표현.
+- **쉬운 언어**: 어려운 기술 용어는 중학생도 이해할 수 있는 일상적인 언어로 비유/설명.
+- **빠른 호흡**: 각 구조는 5~7초를 넘지 않도록 짧고 간결하게 구성.
+
 반드시 아래 JSON 형식으로만 응답하세요:
 {{
-  "title": "쇼츠 제목 (30자 이내)",
+  "title": "쇼츠 제목 (30자 이내, 클릭을 유도하는)",
   "hook": "첫 3초 후크 문장 (시청자를 붙잡는 강렬한 한 문장)",
   "structure": [
     {{"order": 1, "label": "후크", "content": "첫 3초 내용"}},
     {{"order": 2, "label": "문제/배경", "content": "5-7초 내용"}},
     {{"order": 3, "label": "핵심1", "content": "5-7초 내용"}},
     {{"order": 4, "label": "핵심2", "content": "5-7초 내용"}},
-    {{"order": 5, "label": "결과/증거", "content": "5초 내용"}},
+    {{"order": 5, "label": "결과/증거", "content": "5초 내용 (숫자, 고객 피드백 등)"}},
     {{"order": 6, "label": "CTA", "content": "마지막 3초 행동 유도"}}
   ],
   "cta": "CTA 문장 (구체적 행동 유도)",
@@ -79,11 +85,11 @@ async def generate_plan(summary: dict, content_type: str) -> dict[str, Any]:
     response = await client.chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[
-            {"role": "system", "content": "당신은 숏폼 콘텐츠 기획 전문가입니다. JSON만 출력하세요."},
+            {"role": "system", "content": "당신은 B2B SaaS 마케팅을 위한 숏폼 콘텐츠 기획 전문가입니다. JSON만 출력하세요."},
             {"role": "user", "content": prompt},
         ],
         response_format={"type": "json_object"},
-        temperature=0.6,
+        temperature=0.7,
     )
     return json.loads(response.choices[0].message.content)
 
@@ -97,11 +103,12 @@ async def generate_script(plan: dict, content_type: str) -> dict[str, Any]:
 기획:
 {json.dumps(plan, ensure_ascii=False, indent=2)}
 
-조건:
-- 총 대본 길이: 250~350자 (30초 분량)
-- 1인칭 구어체 (바이칼시스템즈 화자)
-- 각 씬은 1~2문장, 5~7초 분량
-- 자막에 들어갈 텍스트는 15자 이내로
+**대본 작성 원칙:**
+- **1인칭 구어체**: 바이칼시스템즈의 전문가가 직접 말하는 것처럼 친근하고 설득력 있는 어조.
+- **메시지 각인**: 가장 중요한 핵심 메시지나 키워드를 2~3번 반복하여 시청자에게 각인.
+- **감성적 연결**: 시청자의 '고충'에 공감하고 '희망'을 제시하는 감성적인 표현 사용.
+- **간결함**: 각 문장은 짧고 명확하게, 전문 용어는 피하고 쉬운 단어 사용.
+- **시각적 묘사**: 대본만 들어도 영상미가 그려지도록 `visual_hint`를 구체적으로 작성.
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {{
@@ -121,10 +128,10 @@ async def generate_script(plan: dict, content_type: str) -> dict[str, Any]:
     response = await client.chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[
-            {"role": "system", "content": "당신은 숏폼 영상 대본 작가입니다. JSON만 출력하세요."},
+            {"role": "system", "content": "당신은 시청자의 마음을 사로잡는 숏폼 영상 대본 작가입니다. JSON만 출력하세요."},
             {"role": "user", "content": prompt},
         ],
         response_format={"type": "json_object"},
-        temperature=0.7,
+        temperature=0.8,
     )
     return json.loads(response.choices[0].message.content)

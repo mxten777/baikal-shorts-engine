@@ -35,7 +35,22 @@ export default function ProjectDetail() {
     queryKey: ["project", id],
     queryFn: () => projectsApi.get(id!),
     enabled: !!id,
+    retry: false,
   });
+
+  // 프로젝트가 존재하지 않으면 홈으로 리다이렉트
+  useEffect(() => {
+    if (id && project === undefined) {
+      // 쿼리가 실패했으나 데이터가 없으면 404로 간주
+      const timer = setTimeout(() => {
+        if (!project) {
+          toast.error("프로젝트를 찾을 수 없습니다.");
+          navigate("/");
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [project, id, navigate]);
 
   const { pipelineState, startPipeline } = usePipeline(id);
 
@@ -43,12 +58,14 @@ export default function ProjectDetail() {
     queryKey: ["script", id],
     queryFn: () => pipelineApi.getScript(id!),
     enabled: !!id && pipelineState?.steps?.script === "done",
+    retry: false,
   });
 
   const { data: scenes = [] } = useQuery({
     queryKey: ["scenes", id],
     queryFn: () => pipelineApi.getScenes(id!),
     enabled: !!id && pipelineState?.steps?.scenes === "done",
+    retry: false,
   });
 
   const [editedHook, setEditedHook] = useState("");
@@ -85,7 +102,10 @@ export default function ProjectDetail() {
 
   const renderMutation = useMutation({
     mutationFn: (config?: RenderConfig) => renderApi.startRender(id!, config),
-    onSuccess: () => navigate(`/renders/${id}`),
+    onSuccess: () => {
+      toast.success("렌더링을 시작했습니다!");
+      navigate(`/renders/${id}`);
+    },
     onError: () => toast.error("렌더링 시작 실패."),
   });
 
@@ -106,6 +126,11 @@ export default function ProjectDetail() {
     if (window.confirm(`"${project?.title}" 프로젝트를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
       deleteMutation.mutate();
     }
+  };
+
+  const handleRestartPipeline = () => {
+    toast.success("파이프라인 재실행을 시작합니다!");
+    startPipeline();
   };
 
   const isScriptDone = pipelineState?.steps?.script === "done";
@@ -139,7 +164,7 @@ export default function ProjectDetail() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => startPipeline()}
+            onClick={handleRestartPipeline}
             className="flex items-center gap-2 px-4 py-2 bg-baikal-gray border border-baikal-gray-light rounded-xl text-sm text-baikal-muted hover:text-white hover:border-baikal-cyan/50 transition-all"
           >
             <RefreshCw size={14} />
@@ -252,7 +277,14 @@ export default function ProjectDetail() {
                     className="hidden"
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file && id) await pipelineApi.uploadAudio(id, file);
+                      if (file && id) {
+                        try {
+                          await pipelineApi.uploadAudio(id, file);
+                          toast.success("오디오 파일이 업로드되었습니다!");
+                        } catch {
+                          toast.error("오디오 업로드 실패.");
+                        }
+                      }
                     }}
                   />
                 </label>
@@ -364,7 +396,11 @@ function SceneCard({ scene, projectId }: { scene: Scene; projectId: string }) {
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Scene>) =>
       pipelineApi.updateScene(projectId, scene.id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scenes", projectId] }),
+    onSuccess: () => {
+      toast.success("씬이 업데이트되었습니다!");
+      qc.invalidateQueries({ queryKey: ["scenes", projectId] });
+    },
+    onError: () => toast.error("씬 업데이트 실패."),
   });
 
   return (

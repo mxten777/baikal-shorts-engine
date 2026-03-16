@@ -44,36 +44,39 @@ function StatusBadge({ status }: { status: Project["status"] }) {
 
 export function ProjectCard({ project }: ProjectCardProps) {
   return (
-    <div className="group flex items-center justify-between px-5 py-4 bg-baikal-gray rounded-xl border border-baikal-gray-light hover:border-baikal-cyan/50 transition-all">
-      <Link to={`/projects/${project.id}`} className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-baikal-gray-light text-baikal-cyan">
+    <div className="group relative flex items-center justify-between px-6 py-5 bg-gradient-to-r from-baikal-gray/60 to-baikal-gray/40 rounded-2xl border border-baikal-gray-light/50 hover:border-baikal-cyan/50 card-hover backdrop-blur-sm shadow-card hover:shadow-card-hover overflow-hidden">
+      {/* Background Glow Effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-baikal-cyan/0 via-baikal-cyan/5 to-baikal-cyan/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      <Link to={`/projects/${project.id}`} className="flex-1 min-w-0 relative z-10">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-gradient-to-r from-baikal-gray-light to-baikal-gray text-baikal-cyan border border-baikal-cyan/30 shadow-glow-sm">
             {CONTENT_TYPE_LABELS[project.content_type]}
           </span>
           <StatusBadge status={project.status} />
         </div>
-        <p className="text-white font-semibold truncate">{project.title}</p>
-        <p className="text-baikal-muted text-xs mt-1">
+        <p className="text-white font-bold text-base truncate mb-1 group-hover:text-baikal-cyan-light transition-colors">{project.title}</p>
+        <p className="text-baikal-muted text-sm leading-relaxed">
           {truncate(project.source_text, 80)}
         </p>
       </Link>
-      <div className="flex items-center gap-3 ml-4 shrink-0">
-        <span className="text-baikal-muted text-xs">
+      <div className="flex items-center gap-4 ml-6 shrink-0 relative z-10">
+        <span className="text-baikal-muted-dark text-xs font-medium">
           {formatDate(project.created_at)}
         </span>
         {project.status === "done" && (
           <Link
             to={`/renders/${project.id}`}
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-baikal-cyan text-baikal-navy rounded-lg text-xs font-bold hover:bg-baikal-cyan-dark transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-baikal-cyan to-baikal-cyan-dark text-baikal-navy rounded-lg text-xs font-bold hover:shadow-glow transition-all duration-300 btn-shine"
           >
-            <Film size={13} />
+            <Film size={14} />
             결과 보기
           </Link>
         )}
-        <Link to={`/projects/${project.id}`}>
+        <Link to={`/projects/${project.id}`} className="hover:scale-110 transition-transform duration-200">
           <ChevronRight
-            size={16}
+            size={20}
             className="text-baikal-muted group-hover:text-baikal-cyan transition-colors"
           />
         </Link>

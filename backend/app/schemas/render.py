@@ -16,6 +16,10 @@ class RenderConfig(BaseModel):
     caption_color: str = Field(default="#FFFFFF", description="자막 색상 (hex)")
     caption_font_size: int = Field(default=52, description="자막 폰트 크기", ge=24, le=120)
     caption_position: Literal["top", "center", "bottom"] = Field(default="bottom", description="자막 위치")
+    thumbnail_style: Literal["gradient", "tech", "minimal", "bold"] = Field(
+        default="gradient", 
+        description="썸네일 스타일 (gradient: 그라디언트, tech: 테크, minimal: 미니멀, bold: 대담)"
+    )
 
 
 class StartRenderRequest(BaseModel):

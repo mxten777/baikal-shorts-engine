@@ -3,10 +3,8 @@ Render Service — FFmpeg 기반 9:16 쇼츠 영상 렌더링 파이프라인
 씬별 배경 생성 → 자막 오버레이 → 음성 결합 → concat → 워터마크 → 인코딩
 """
 import asyncio
-import os
 import tempfile
 import uuid
-import zipfile
 import io
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -17,6 +15,7 @@ from app.core.supabase import get_supabase
 from app.core.render_queue import render_queue
 from app.core.logging import get_logger
 from app.services.tts_service import generate_scene_tts
+from app.services.pexels_service import search_background_image
 
 # 로거 초기화
 logger = get_logger("render_service")
@@ -72,6 +71,7 @@ async def run_render_job(job_id: str, project_id: str) -> None:
             "caption_color": render_config.get("caption_color", "#FFFFFF"),
             "caption_font_size": render_config.get("caption_font_size", 52),
             "caption_position": render_config.get("caption_position", "bottom"),
+            "thumbnail_style": render_config.get("thumbnail_style", "gradient"),
         }
         
         # 해상도 파싱
@@ -114,12 +114,33 @@ async def run_render_job(job_id: str, project_id: str) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
 
-            # Step 1: 씬별 배경 이미지 생성
+            # Step 1: 씬별 배경 이미지 생성 또는 다운로드
             bg_paths = []
-            for scene in scenes:
-                bg_path = tmp / f"bg_{scene['scene_order']:02d}.png"
-                _create_scene_background(bg_path, scene, width, height, bg_rgb, accent_rgb)
-                bg_paths.append(bg_path)
+            async with httpx.AsyncClient() as client:
+                for scene in scenes:
+                    bg_path = tmp / f"bg_{scene['scene_order']:02d}.png"
+                    
+                    # Pexels에서 이미지 검색
+                    visual_hint = _get_scene_visual_hint(scene, plan_result_json)
+                    image_url = await search_background_image(visual_hint)
+
+                    if image_url:
+                        try:
+                            # 이미지 다운로드
+                            response = await client.get(image_url, timeout=20.0)
+                            response.raise_for_status()
+                            # Pillow로 열어서 리사이즈 및 저장
+                            with Image.open(io.BytesIO(response.content)) as img:
+                                img_resized = img.resize((width, height))
+                                img_resized.save(bg_path, "PNG")
+                        except (httpx.HTTPStatusError, IOError) as e:
+                            logger.warning(f"배경 이미지 다운로드/처리 실패: {e}, 단색 배경으로 대체합니다.")
+                            _create_scene_background(bg_path, scene, width, height, bg_rgb, accent_rgb)
+                    else:
+                        # Pexels 이미지가 없으면 기존 단색 배경 생성
+                        _create_scene_background(bg_path, scene, width, height, bg_rgb, accent_rgb)
+                    
+                    bg_paths.append(bg_path)
 
             update_job("running", 30)
 
@@ -174,7 +195,7 @@ async def run_render_job(job_id: str, project_id: str) -> None:
 
             # 썸네일 생성
             thumbnail_url = await _create_and_upload_thumbnail(
-                project_id, plan_result_json, tmpdir, db
+                project_id, plan_result_json, tmpdir, db, style=config["thumbnail_style"]
             )
 
             # Step 7: 플랫폼별 패키지 + ZIP 생성
@@ -205,28 +226,36 @@ async def run_render_job(job_id: str, project_id: str) -> None:
             db.table("projects").update({"status": "done"}).eq("id", project_id).execute()
 
     except Exception as e:
-        import traceback
-        err_msg = f"{type(e).__name__}: {e}\n" + traceback.format_exc()
-        update_job("failed", 0, error_message=err_msg[:2000])
-        logger.error(f"렌더링 실패 job_id={job_id}: {err_msg}")
-        raise
+        logger.error(f"렌더링 작업 실패 (job_id: {job_id}): {e}", exc_info=True)
+        update_job("failed", 100, error_message=str(e))
     finally:
         # 큐 슬롯 해제
         await render_queue.release(job_id)
 
 
+def _get_scene_body(scene: dict, plan_result: dict) -> str:
+    """씬 순서에 맞는 대본 body 추출"""
+    try:
+        return plan_result["structure"][scene["scene_order"] - 1]["content"]
+    except (KeyError, IndexError):
+        return ""
+
+def _get_scene_visual_hint(scene: dict, plan_result: dict) -> str:
+    """씬 순서에 맞는 visual_hint 추출"""
+    try:
+        # llm_service.py의 generate_script 프롬프트에 따라 scenes 리스트에서 찾음
+        script_scenes = plan_result.get("scenes", [])
+        return script_scenes[scene["scene_order"] - 1].get("visual_hint", "abstract")
+    except (KeyError, IndexError):
+        return "abstract technology"
+
 def _create_scene_background(
-    output_path: Path,
-    scene: dict,
-    width: int,
-    height: int,
-    bg_rgb: tuple,
-    accent_rgb: tuple
+    bg_path: Path, scene: dict, width: int, height: int, bg_color: tuple, accent_color: tuple
 ) -> None:
     """PIL로 씬 배경 이미지 생성 — 추상 그래픽 + 브랜드 디자인"""
     import math, random
     w, h = width, height
-    accent = accent_rgb
+    accent = accent_color
     scene_num = scene.get("scene_order", 1)
 
     # 씬마다 다른 시드로 배치 일관성 유지
@@ -356,20 +385,7 @@ def _create_scene_background(
             y_start += lh + 30
 
     img = img.convert("RGB")
-    img.save(output_path, "PNG")
-
-
-def _get_scene_body(scene: dict, plan: dict) -> str:
-    """씬 대사 텍스트 가져오기"""
-    return scene.get("description", "")
-
-
-async def _download_file(url: str, dest: Path) -> None:
-    """URL에서 파일 다운로드"""
-    async with httpx.AsyncClient(timeout=60) as http:
-        response = await http.get(url)
-        response.raise_for_status()
-        dest.write_bytes(response.content)
+    img.save(bg_path, "PNG")
 
 
 async def _create_scene_clip(
@@ -396,9 +412,9 @@ async def _create_scene_clip(
     drawtext_filter = (
         f"drawtext={font_file_arg}"
         f"text='{safe_caption}':"
-        f"fontsize={font_size}:"
+        f"fontsize=58:"
         f"fontcolor=white:"
-        f"borderw=3:"
+        f"borderw=4:"
         f"bordercolor=black:"
         f"x=(w-text_w)/2:"
         f"y={caption_y - font_size // 2}"
@@ -413,9 +429,9 @@ async def _create_scene_clip(
         "-vf", f"scale={w}:{h},{drawtext_filter}",
         "-c:v", "libx264",
         "-preset", "fast",
-        "-crf", "23",
+        "-crf", "20",
         "-c:a", "aac",
-        "-b:a", "128k",
+        "-b:a", "192k",
         "-shortest",
         "-t", str(duration),
         str(output_path),
@@ -504,36 +520,35 @@ async def _run_ffmpeg(cmd: list[str]) -> None:
 
 
 async def _create_and_upload_thumbnail(
-    project_id: str, plan: dict, tmpdir: str, db
+    project_id: str, plan: dict, tmpdir: str, db, style: str = "gradient"
 ) -> str:
-    """썸네일 이미지 생성 및 업로드"""
+    """썸네일 이미지 생성 및 업로드
+    
+    Args:
+        project_id: 프로젝트 ID
+        plan: 기획 결과 JSON
+        tmpdir: 임시 디렉토리
+        db: Supabase 클라이언트
+        style: 썸네일 스타일 ("gradient", "tech", "minimal", "bold")
+    """
     w, h = BAIKAL_BRAND["width"], BAIKAL_BRAND["height"]
-    img = Image.new("RGB", (w, h), BAIKAL_BRAND["bg_color"])
-    draw = ImageDraw.Draw(img)
-
+    
     # 썸네일 텍스트
     options = plan.get("thumbnail_options", [settings.BRAND_NAME])
     text = options[0] if options else settings.BRAND_NAME
-
-    # 텍스트 중앙 배치
-    font_path = ASSETS_DIR / "NotoSansKR-Bold.ttf"
-    try:
-        font = ImageFont.truetype(str(font_path), 80)
-    except Exception:
-        font = ImageFont.load_default()
-
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-    draw.text(
-        ((w - text_w) // 2, (h - text_h) // 2),
-        text,
-        fill=BAIKAL_BRAND["accent_color"],
-        font=font,
-    )
+    
+    # 스타일에 따라 다른 썸네일 생성
+    if style == "tech":
+        img = _create_tech_thumbnail(w, h, text)
+    elif style == "minimal":
+        img = _create_minimal_thumbnail(w, h, text)
+    elif style == "bold":
+        img = _create_bold_thumbnail(w, h, text)
+    else:  # gradient (default)
+        img = _create_gradient_thumbnail(w, h, text)
 
     thumb_path = Path(tmpdir) / "thumbnail.jpg"
-    img.save(thumb_path, "JPEG", quality=90)
+    img.save(thumb_path, "JPEG", quality=95)
 
     thumb_key = f"thumbnails/{project_id}/{uuid.uuid4()}.jpg"
     with open(thumb_path, "rb") as f:
@@ -541,6 +556,277 @@ async def _create_and_upload_thumbnail(
             thumb_key, f, {"content-type": "image/jpeg"}
         )
     return db.storage.from_(settings.SUPABASE_BUCKET).get_public_url(thumb_key)
+
+
+def _create_gradient_thumbnail(w: int, h: int, text: str) -> Image.Image:
+    """그라디언트 스타일 썸네일"""
+    # 세로 그라디언트 배경
+    img = Image.new("RGB", (w, h))
+    draw = ImageDraw.Draw(img)
+    
+    # 다크 블루 → 시안 그라디언트
+    top_color = (10, 22, 40)      # #0A1628
+    bottom_color = (0, 60, 100)   # #003C64
+    
+    for y in range(h):
+        t = y / h
+        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * t)
+        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * t)
+        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
+        draw.line([(0, y), (w, y)], fill=(r, g, b))
+    
+    # 글로우 효과
+    glow_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow_layer)
+    
+    # 중앙 상단 글로우
+    cx, cy = w // 2, h // 3
+    for radius in range(500, 0, -25):
+        alpha = int(20 * (1 - radius / 500))
+        gd.ellipse(
+            [cx - radius, cy - radius, cx + radius, cy + radius],
+            fill=(0, 212, 255, alpha)
+        )
+    
+    img = Image.alpha_composite(img.convert("RGBA"), glow_layer)
+    
+    # 장식 요소
+    deco_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(deco_layer)
+    
+    # 상단 액센트 바
+    dd.rectangle([(0, 0), (w, 15)], fill=(0, 212, 255, 255))
+    
+    # 우측 상단 원
+    dd.ellipse([w - 450, -150, w + 150, 450], outline=(0, 212, 255, 60), width=3)
+    
+    # 좌측 하단 원
+    dd.ellipse([-250, h - 450, 350, h + 150], outline=(0, 180, 220, 50), width=2)
+    
+    img = Image.alpha_composite(img, deco_layer)
+    
+    # 텍스트 추가
+    img = img.convert("RGB")
+    draw = ImageDraw.Draw(img)
+    
+    font_path = ASSETS_DIR / "NotoSansKR-Bold.ttf"
+    try:
+        # 텍스트 길이에 따라 폰트 크기 조정
+        font_size = 100 if len(text) <= 10 else 80 if len(text) <= 15 else 60
+        font = ImageFont.truetype(str(font_path), font_size)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    # 텍스트 줄바꿈 처리
+    lines = _wrap_text(text, 15)
+    
+    # 전체 텍스트 높이 계산
+    total_height = 0
+    line_heights = []
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        line_h = bbox[3] - bbox[1]
+        line_heights.append(line_h)
+        total_height += line_h
+    
+    total_height += (len(lines) - 1) * 30  # 줄 간격
+    
+    # 중앙 정렬
+    y_start = (h - total_height) // 2
+    
+    for line, line_h in zip(lines, line_heights):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_w = bbox[2] - bbox[0]
+        x = (w - text_w) // 2
+        
+        # 텍스트 그림자
+        draw.text((x + 4, y_start + 4), line, fill=(0, 0, 0, 150), font=font)
+        # 메인 텍스트
+        draw.text((x, y_start), line, fill=(0, 212, 255), font=font)
+        
+        y_start += line_h + 30
+    
+    # 로고 추가 (하단 중앙)
+    logo_path = ASSETS_DIR / "baikal_logo.png"
+    if logo_path.exists():
+        try:
+            logo = Image.open(logo_path).convert("RGBA")
+            # 로고 크기 조정 (가로 200px)
+            logo_w = 200
+            logo_h = int(logo.height * (logo_w / logo.width))
+            logo = logo.resize((logo_w, logo_h), Image.Resampling.LANCZOS)
+            
+            # 하단 중앙에 배치
+            logo_x = (w - logo_w) // 2
+            logo_y = h - logo_h - 80
+            
+            img_rgba = img.convert("RGBA")
+            img_rgba.paste(logo, (logo_x, logo_y), logo)
+            img = img_rgba.convert("RGB")
+        except Exception as e:
+            logger.warning(f"로고 추가 실패: {e}")
+    
+    return img
+
+
+def _create_tech_thumbnail(w: int, h: int, text: str) -> Image.Image:
+    """테크 스타일 썸네일 (기하학적 패턴)"""
+    img = Image.new("RGB", (w, h), (8, 16, 32))
+    draw = ImageDraw.Draw(img)
+    
+    # 대각선 그리드 패턴
+    line_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(line_layer)
+    
+    # 세로선
+    for x in range(0, w, 80):
+        ld.line([(x, 0), (x, h)], fill=(0, 212, 255, 25), width=1)
+    
+    # 가로선
+    for y in range(0, h, 80):
+        ld.line([(0, y), (w, y)], fill=(0, 212, 255, 25), width=1)
+    
+    img = Image.alpha_composite(img.convert("RGBA"), line_layer).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    
+    # 중앙 사각형 프레임
+    margin = 100
+    draw.rectangle(
+        [(margin, margin), (w - margin, h - margin)],
+        outline=(0, 212, 255, 150), width=5
+    )
+    
+    # 텍스트
+    font_path = ASSETS_DIR / "NotoSansKR-Bold.ttf"
+    try:
+        font_size = 90 if len(text) <= 10 else 70 if len(text) <= 15 else 55
+        font = ImageFont.truetype(str(font_path), font_size)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    lines = _wrap_text(text, 12)
+    y_start = h // 2 - len(lines) * 40
+    
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        x = (w - text_w) // 2
+        
+        # 배경 박스
+        padding = 20
+        draw.rectangle(
+            [(x - padding, y_start - padding), 
+             (x + text_w + padding, y_start + text_h + padding)],
+            fill=(0, 212, 255, 30)
+        )
+        
+        # 텍스트
+        draw.text((x, y_start), line, fill=(255, 255, 255), font=font)
+        y_start += text_h + 40
+    
+    return img
+
+
+def _create_minimal_thumbnail(w: int, h: int, text: str) -> Image.Image:
+    """미니멀 스타일 썸네일"""
+    img = Image.new("RGB", (w, h), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    
+    # 상단 액센트
+    draw.rectangle([(0, 0), (w, 30)], fill=(0, 212, 255))
+    
+    # 텍스트
+    font_path = ASSETS_DIR / "NotoSansKR-Bold.ttf"
+    try:
+        font_size = 95 if len(text) <= 10 else 75 if len(text) <= 15 else 60
+        font = ImageFont.truetype(str(font_path), font_size)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    lines = _wrap_text(text, 14)
+    y_start = h // 2 - len(lines) * 50
+    
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        x = (w - text_w) // 2
+        
+        draw.text((x, y_start), line, fill=(10, 22, 40), font=font)
+        y_start += text_h + 35
+    
+    # 하단 장식선
+    draw.rectangle([(w // 4, h - 100), (w * 3 // 4, h - 95)], fill=(0, 212, 255))
+    
+    return img
+
+
+def _create_bold_thumbnail(w: int, h: int, text: str) -> Image.Image:
+    """대담한 스타일 썸네일"""
+    img = Image.new("RGB", (w, h), (0, 212, 255))
+    draw = ImageDraw.Draw(img)
+    
+    # 중앙 다크 박스
+    box_margin = 120
+    draw.rectangle(
+        [(box_margin, box_margin), (w - box_margin, h - box_margin)],
+        fill=(10, 22, 40)
+    )
+    
+    # 텍스트
+    font_path = ASSETS_DIR / "NotoSansKR-Bold.ttf"
+    try:
+        font_size = 100 if len(text) <= 10 else 80 if len(text) <= 15 else 65
+        font = ImageFont.truetype(str(font_path), font_size)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    lines = _wrap_text(text, 12)
+    y_start = h // 2 - len(lines) * 55
+    
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        x = (w - text_w) // 2
+        
+        # 외곽선 효과
+        for offset_x, offset_y in [(-3, -3), (3, -3), (-3, 3), (3, 3)]:
+            draw.text((x + offset_x, y_start + offset_y), line, 
+                     fill=(0, 212, 255), font=font)
+        
+        # 메인 텍스트
+        draw.text((x, y_start), line, fill=(255, 255, 255), font=font)
+        y_start += text_h + 40
+    
+    return img
+
+
+def _wrap_text(text: str, max_chars: int) -> list[str]:
+    """텍스트를 지정된 길이로 줄바꿈"""
+    if len(text) <= max_chars:
+        return [text]
+    
+    words = text.split()
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        if current_length + len(word) + len(current_line) <= max_chars:
+            current_line.append(word)
+            current_length += len(word)
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+            current_length = len(word)
+    
+    if current_line:
+        lines.append(" ".join(current_line))
+    
+    return lines if lines else [text]
 
 
 def _build_channel_caption(plan: dict, channel: str) -> str:

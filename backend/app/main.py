@@ -1,12 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.supabase import get_supabase
+from app.core.validation import check_and_exit_if_invalid
+from app.core.exceptions import (
+    AppException,
+    app_exception_handler,
+    validation_exception_handler,
+    general_exception_handler,
+)
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
+
+# 환경 변수 검증 (서버 시작 전 필수)
+check_and_exit_if_invalid()
 
 # 로깅 초기화
 setup_logging()
@@ -46,6 +57,11 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=600,
 )
+
+# 예외 핸들러 등록
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 app.include_router(api_router, prefix="/api/v1")
 

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # FFmpeg
     FFMPEG_PATH: str = "ffmpeg"  # PATH에 있으면 그대로, 아니면 절대경로
 
+    # Pexels API
+    PEXELS_API_KEY: str | None = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True

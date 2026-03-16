@@ -8,6 +8,7 @@ import ProjectDetail from "@/pages/ProjectDetail";
 import RenderResult from "@/pages/RenderResult";
 import Settings from "@/pages/Settings";
 import { InstagramCallback } from "@/pages/InstagramCallback";
+import { Toaster } from "@/components/ui/Toaster";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/auth/instagram/callback" element={<InstagramCallback />} />
           </Routes>
         </AppShell>
+        <Toaster />
       </BrowserRouter>
     </QueryClientProvider>
   );

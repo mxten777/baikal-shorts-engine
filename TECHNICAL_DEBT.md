@@ -1,7 +1,7 @@
 # BAIKAL Shorts Engine - 기술부채 및 향후 작업 목록
 
 > 생성일: 2026-03-15
-> 최종 업데이트: 2026-03-15
+> 최종 업데이트: 2026-03-16
 
 ## 🔴 긴급 (High Priority)
 
@@ -36,17 +36,16 @@
   - `backend/app/services/render_service.py` (Line 47)
   - `backend/app/core/render_queue.py` (Line 65)
 
-### 5. 환경 변수 검증 강화
-- [ ] 시작 시 필수 환경 변수 검증
-- [ ] 누락된 변수가 있으면 명확한 에러 메시지
-- [ ] `.env.example` 파일 업데이트
-- 📍 새 파일: `backend/app/core/validation.py`
+### 5. ~~환경 변수 검증 강화~~ ✅ 완료 (2026-03-16)
+- [x] 시작 시 필수 환경 변수 검증
+- [x] 누락된 변수가 있으면 명확한 에러 메시지
+- 📍 구현: `backend/app/core/validation.py`
 
-### 6. 에러 핸들링 개선
-- [ ] 전역 예외 핸들러 추가
-- [ ] 커스텀 예외 클래스 정의
-- [ ] API 에러 응답 표준화
-- 📍 새 파일: `backend/app/core/exceptions.py`
+### 6. ~~에러 핸들링 개선~~ ✅ 완료 (2026-03-16)
+- [x] 전역 예외 핸들러 추가
+- [x] 커스텀 예외 클래스 정의
+- [x] API 에러 응답 표준화
+- 📍 구현: `backend/app/core/exceptions.py`
 
 ### 7. 테스트 코드 추가
 - [ ] 단위 테스트 작성 (pytest)
@@ -83,12 +82,24 @@
 
 ## ✅ 완료된 작업
 
-- [x] 로깅 시스템 구축 (2026-03-15)
-- [x] print() → logger 전환 (2026-03-15)
-- [x] .gitignore 개선 (2026-03-15)
-- [x] 배포 가이드 문서화 (2026-03-15)
-- [x] Render 백엔드 배포 (2026-03-15)
-- [x] Vercel 프론트엔드 배포 (2026-03-15)
+### 2026-03-15
+- [x] 로깅 시스템 구축
+- [x] print() → logger 전환
+- [x] .gitignore 개선
+- [x] 배포 가이드 문서화
+- [x] Render 백엔드 배포
+- [x] Vercel 프론트엔드 배포
+
+### 2026-03-16
+- [x] 비디오 품질 개선 (CRF 23→20, preset fast, 오디오 192k)
+- [x] 자막 가독성 개선 (폰트 52→58, 테두리 3→4)
+- [x] LLM 프롬프트 개선 (기획 temperature 0.7, 대본 0.8)
+- [x] Pexels API 연동 (씬별 동적 배경 이미지 자동 다운로드)
+- [x] 프로젝트 삭제 루틴 개선 (404 자동 핸들링, 삭제 로깅)
+- [x] 가비지 코드 정리 (_download_file 함수, os/zipfile import 제거)
+- [x] 코드 에러 수정 (render_service.py의 output_path → bg_path)
+- [x] **환경 변수 검증 시스템** (validation.py, 서버 시작 전 필수 변수 체크)
+- [x] **전역 예외 핸들러** (exceptions.py, 표준화된 에러 응답)
 
 ---
 

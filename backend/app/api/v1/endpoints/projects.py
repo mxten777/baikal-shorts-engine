@@ -84,8 +84,20 @@ async def get_project(project_id: str):
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(project_id: str):
+    """프로젝트 삭제 (CASCADE로 관련 데이터 모두 삭제)"""
     db = get_supabase()
-    result = db.table("projects").select("id").eq("id", project_id).execute()
+    
+    # 프로젝트 존재 여부 확인
+    result = db.table("projects").select("id, title").eq("id", project_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다")
-    db.table("projects").delete().eq("id", project_id).execute()
+    
+    # 삭제 전 로깅 (디버깅용)
+    project_title = result.data[0].get("title", "Unknown")
+    print(f"[DELETE] 프로젝트 삭제 시작: {project_id} ({project_title})")
+    
+    # 삭제 실행 (CASCADE로 관련 테이블 자동 삭제)
+    delete_result = db.table("projects").delete().eq("id", project_id).execute()
+    
+    print(f"[DELETE] 프로젝트 삭제 완료: {project_id}")
+    return None

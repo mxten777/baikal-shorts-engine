@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Body
+from fastapi.responses import StreamingResponse
 from typing import List
 from app.schemas.render import (
     RenderJobResponse,
@@ -11,6 +12,7 @@ from app.core.render_queue import render_queue
 import asyncio
 import uuid
 from datetime import datetime, timezone
+import httpx
 
 router = APIRouter()
 
@@ -99,3 +101,39 @@ async def get_download_urls(project_id: str):
 async def get_queue_status():
     """렌더 큐 상태 조회"""
     return render_queue.get_queue_status()
+
+
+@router.get("/{project_id}/thumbnail/download")
+async def download_thumbnail(project_id: str):
+    """썸네일 다운로드"""
+    db = get_supabase()
+    
+    # 가장 최근 완료된 렌더 작업 조회
+    job_result = (
+        db.table("render_jobs")
+        .select("thumbnail_url")
+        .eq("project_id", project_id)
+        .eq("status", "done")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    
+    if not job_result.data or not job_result.data[0].get("thumbnail_url"):
+        raise HTTPException(status_code=404, detail="썸네일이 없습니다")
+    
+    thumbnail_url = job_result.data[0]["thumbnail_url"]
+    
+    # Supabase Storage에서 이미지 가져오기
+    async with httpx.AsyncClient() as client:
+        response = await client.get(thumbnail_url)
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="썸네일 다운로드 실패")
+        
+        return StreamingResponse(
+            iter([response.content]),
+            media_type="image/jpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=thumbnail.jpg"
+            }
+        )

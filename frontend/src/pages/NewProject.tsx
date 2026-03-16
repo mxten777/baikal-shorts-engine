@@ -5,6 +5,8 @@ import { projectsApi } from "@/api/projects";
 import { ContentTypeSelector } from "@/components/project/ContentTypeSelector";
 import type { ContentType } from "@/types";
 import { ArrowLeft, Upload, Sparkles } from "lucide-react";
+import { toast } from "@/hooks/useToast";
+import { cn } from "@/lib/utils";
 
 export default function NewProject() {
   const navigate = useNavigate();
@@ -15,7 +17,11 @@ export default function NewProject() {
   const createMutation = useMutation({
     mutationFn: projectsApi.create,
     onSuccess: (project) => {
+      toast.success("프로젝트가 생성되었습니다!");
       navigate(`/projects/${project.id}`);
+    },
+    onError: () => {
+      toast.error("프로젝트 생성 실패. 다시 시도해주세요.");
     },
   });
 
@@ -35,22 +41,24 @@ export default function NewProject() {
   const charCount = sourceText.length;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl animate-fade-in">
       {/* 헤더 */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-baikal-muted hover:text-white text-sm mb-6 transition-colors"
+        className="flex items-center gap-2 text-baikal-muted hover:text-baikal-cyan text-sm mb-6 transition-all duration-300 hover:gap-3 group"
       >
-        <ArrowLeft size={16} />
+        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
         돌아가기
       </button>
 
-      <h1 className="text-2xl font-bold text-white mb-8">새 쇼츠 프로젝트</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">새 쇼츠 프로젝트</h1>
+        <p className="text-baikal-muted">AI가 자동으로 30초 쇼츠를 기획하고 제작합니다</p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 제목 */}
-        <div>
-          <label className="block text-sm font-medium text-baikal-text mb-2">
+      <form onSubmit={handleSubmit} className="space-y-6">\n        {/* 제목 */}
+        <div className="animate-slide-in" style={{ animationDelay: '100ms' }}>
+          <label className="block text-sm font-semibold text-baikal-text mb-3">
             프로젝트 제목
           </label>
           <input
@@ -58,27 +66,23 @@ export default function NewProject() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="예: AI 플랫폼 구축 사례 쇼츠"
-            className="w-full bg-baikal-gray border border-baikal-gray-light rounded-xl px-4 py-3 text-white placeholder:text-baikal-muted focus:outline-none focus:border-baikal-cyan transition-colors"
+            className="w-full bg-baikal-gray/50 border border-baikal-gray-light/50 rounded-xl px-5 py-3.5 text-white placeholder:text-baikal-muted focus:outline-none focus:border-baikal-cyan focus:bg-baikal-gray transition-all duration-300 input-glow"
             required
           />
-        </div>
-
-        {/* 콘텐츠 유형 */}
-        <div>
-          <label className="block text-sm font-medium text-baikal-text mb-2">
+        </div>\n        {/* 콘텐츠 유형 */}
+        <div className="animate-slide-in" style={{ animationDelay: '200ms' }}>
+          <label className="block text-sm font-semibold text-baikal-text mb-3">
             콘텐츠 유형
           </label>
           <ContentTypeSelector value={contentType} onChange={setContentType} />
-        </div>
-
-        {/* 원문 입력 */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-baikal-text">
+        </div>\n        {/* 원문 입력 */}
+        <div className="animate-slide-in" style={{ animationDelay: '300ms' }}>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-semibold text-baikal-text">
               원문 텍스트
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-baikal-cyan cursor-pointer hover:text-baikal-cyan-dark transition-colors">
-              <Upload size={13} />
+            <label className="flex items-center gap-2 text-xs text-baikal-cyan cursor-pointer hover:text-baikal-cyan-light transition-colors group">
+              <Upload size={14} className="group-hover:scale-110 transition-transform" />
               파일 업로드 (TXT/DOCX)
               <input
                 type="file"
@@ -88,45 +92,52 @@ export default function NewProject() {
               />
             </label>
           </div>
-          <textarea
-            value={sourceText}
-            onChange={(e) => setSourceText(e.target.value)}
-            placeholder="사업계획서, 프로젝트 소개서, 서비스 설명문 등 원문 텍스트를 붙여넣으세요.
-AI가 자동으로 30초 쇼츠 기획과 대본을 생성합니다."
-            rows={10}
-            className="w-full bg-baikal-gray border border-baikal-gray-light rounded-xl px-4 py-3 text-white placeholder:text-baikal-muted focus:outline-none focus:border-baikal-cyan transition-colors resize-none"
-            required
-          />
-          <p className="text-baikal-muted text-xs mt-1.5 text-right">
-            {charCount.toLocaleString()}자
-          </p>
-        </div>
-
-        {/* 제출 */}
+          <div className="relative">
+            <textarea
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              placeholder="사업계획서, 프로젝트 소개서, 서비스 설명문 등 원문 텍스트를 붙여넣으세요.&#10;AI가 자동으로 30초 쇼츠 기획과 대본을 생성합니다."
+              rows={12}
+              className="w-full bg-baikal-gray/50 border border-baikal-gray-light/50 rounded-xl px-5 py-4 text-white placeholder:text-baikal-muted focus:outline-none focus:border-baikal-cyan focus:bg-baikal-gray transition-all duration-300 resize-none input-glow leading-relaxed"
+              required
+            />
+            <div className="absolute bottom-4 right-5 flex items-center gap-3">
+              <span className={cn(
+                "text-xs font-medium transition-colors",
+                charCount > 0 ? "text-baikal-cyan" : "text-baikal-muted-dark"
+              )}>
+                {charCount.toLocaleString()}자
+              </span>
+            </div>
+          </div>
+        </div>\n        {/* 제출 */}
         <button
           type="submit"
           disabled={
             createMutation.isPending || !title.trim() || !sourceText.trim()
           }
-          className="w-full flex items-center justify-center gap-2 py-3.5 bg-baikal-cyan text-baikal-navy font-bold rounded-xl hover:bg-baikal-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-baikal-cyan to-baikal-cyan-dark text-baikal-navy font-bold rounded-xl hover:shadow-glow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none btn-shine overflow-hidden group animate-slide-in"
+          style={{ animationDelay: '400ms' }}
         >
           {createMutation.isPending ? (
             <>
-              <div className="w-4 h-4 border-2 border-baikal-navy border-t-transparent rounded-full animate-spin" />
+              <div className="relative w-5 h-5">
+                <div className="absolute inset-0 border-3 border-baikal-navy/30 border-t-baikal-navy rounded-full animate-spin" />
+              </div>
               생성 중...
             </>
           ) : (
             <>
-              <Sparkles size={18} />
+              <Sparkles size={20} className="group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
               파이프라인 시작
             </>
           )}
-        </button>
-
-        {createMutation.isError && (
-          <p className="text-red-400 text-sm text-center">
-            {(createMutation.error as Error).message}
-          </p>
+        </button>\n        {createMutation.isError && (
+          <div className="bg-red-900/20 border border-red-400/30 rounded-xl p-4 animate-scale-in">
+            <p className="text-red-400 text-sm">
+              {(createMutation.error as Error).message}
+            </p>
+          </div>
         )}
       </form>
     </div>
